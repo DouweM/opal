@@ -4,10 +4,10 @@ class Range
   %x{
     Range._proto._isRange = true;
 
-    Opal.range = function(beg, end, exc) {
+    Opal.range = function(first, last, exc) {
       var range         = new Range._alloc;
-          range.begin   = beg;
-          range.end     = end;
+          range.begin   = first;
+          range.end     = last;
           range.exclude = exc;
 
       return range;
@@ -17,9 +17,9 @@ class Range
   attr_reader :begin
   attr_reader :end
 
-  def initialize(min, max, exclude = false)
-    @begin   = min
-    @end     = max
+  def initialize(first, last, exclude = false)
+    @begin   = first
+    @end     = last
     @exclude = exclude
   end
 
@@ -35,11 +35,11 @@ class Range
 
   # FIXME: currently hardcoded to assume range holds numerics
   def ===(obj)
-    `return obj >= #{self}.begin && (#{self}.exclude ? obj < #{self}.end : obj <= #{self}.end)`
+    include?(obj)
   end
 
   def cover?(value)
-    `#{self}.begin` <= value && value <= (exclude_end? ? `#{self}.end` - 1 : `#{self}.end`)
+    `#{self}.begin` <= value && value <= self.max
   end
 
   def last
@@ -47,15 +47,15 @@ class Range
   end
 
   def each(&block)
+    return enum_for :each unless block_given?
+
     current = min
 
-    while current != max
+    while current <= max
       yield current
 
       current = current.succ
     end
-
-    yield current unless exclude_end?
 
     self
   end
@@ -63,7 +63,7 @@ class Range
   def eql?(other)
     return false unless Range === other
 
-    exclude_end? == other.exclude_end? && `#{self}.begin`.eql?(other.begin) && `#{self}.end`.eql?(other.end)
+    `#{self}.exclude === other.exclude` && `#{self}.begin`.eql?(other.begin) && `#{self}.end`.eql?(other.end)
   end
 
   def exclude_end?
@@ -72,12 +72,25 @@ class Range
 
   # FIXME: currently hardcoded to assume range holds numerics
   def include?(obj)
-    `return obj >= #{self}.begin && obj <= #{self}.end`
+    cover?(obj)
   end
 
-  alias max end
+  # FIXME: currently hardcoded to assume range holds numerics
+  def max
+    if block_given?
+      super
+    else
+      `#{self}.exclude ? #{self}.end - 1 : #{self}.end`
+    end
+  end
 
-  alias min begin
+  def min
+    if block_given?
+      super
+    else
+      `#{self}.begin`
+    end
+  end
 
   alias member? include?
 
@@ -86,7 +99,7 @@ class Range
   end
 
   def to_s
-    `#{self}.begin + (#{self}.exclude ? '...' : '..') + #{self}.end`
+    `#{self.begin.inspect} + (#{self}.exclude ? '...' : '..') + #{self.end.inspect}`
   end
 
   alias inspect to_s
